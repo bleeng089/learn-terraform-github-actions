@@ -4,7 +4,7 @@ on:
   pull_request:
 env:
   TF_CLOUD_ORGANIZATION: "AWSUltramarines"
-  TF_API_TOKEN: "${{ secrets.TF_USER_API_TOKEN }}"
+  TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
   TF_WORKSPACE: "learn-terraform-github-actions"
   CONFIG_DIRECTORY: "./"
 jobs:
