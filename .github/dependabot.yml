@@ -4,3 +4,6 @@ updates:
     directory: /
     schedule:
       interval: daily
+# Dependabot will scan and monitor the entire repository (/) = learn-terraform-github-actions/.githubactions/workflows for any updates and changes,
+# This ensures that Dependabot keeps an eye on all directories within the repository to detect any updates needed for GitHub Actions and Terraform.
+# Monitoring will occur daily as per the interval specified.

@@ -3,18 +3,18 @@ name: "Terraform"
 on:
   push:
     branches:
-      - main
+      - main #Runs the workflow when changes are pushed to the main branch.
   pull_request:
 
 jobs:
   terraform:
     name: "Terraform"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest #This is ran on GitHub-hosted runners VMS
     permissions:
       pull-requests: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Checkout 
+        uses: actions/checkout@v3 #This action checks out your repository to the GitHub runner(GitHub-hosted virtual machine), meaning it fetches your code so the runner has access to it during the workflow execution.
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
@@ -32,16 +32,16 @@ jobs:
       
       - name: Terraform Validate
         id: validate
-        run: terraform validate -no-color
+        run: terraform validate -no-color #The -no-color option prevents Terraform from using colored output. This is useful in CI/CD pipelines, as it makes the logs cleaner and easier to read without the ANSI color codes that might clutter the output.
 
       - name: Terraform Plan
         id: plan
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' #github.event_name = The name of the event that triggered the workflow run.
         run: terraform plan -no-color -input=false
         continue-on-error: true
 
-      - name: Update Pull Request
-        uses: actions/github-script@v6
+      - name: Update Pull Request #This step helps in providing real-time feedback on the pull request with detailed results from the Terraform execution. It enhances the review process by making the relevant information easily accessible to reviewers.
+        uses: actions/github-script@v6 #Script Execution: You provide a JavaScript script that runs within the workflow. This script can use the GitHub API to perform various actions, such as creating comments, updating issues, or querying repository data
         if: github.event_name == 'pull_request'
         env:
           PLAN: ${{ steps.plan.outputs.stdout }}
@@ -72,8 +72,8 @@ jobs:
 
       - name: Terraform Plan Status
         if: steps.plan.outcome == 'failure'
-        run: exit 1
+        run: exit 1 #If the Terraform plan fails, this step will fail the workflow, ensuring that further steps are not executed.
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false
+        run: terraform apply -auto-approve -input=false #If the changes are pushed to the main branch, this step will apply the Terraform plan automatically.
