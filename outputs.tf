@@ -27,25 +27,25 @@ output "subnet4_id" {
 # Output the ALB DNS from the infrastructure child module
 output "ALB-DNS-japan" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_japan.ALB-DNS
+  value       = module.infrastructure_japan.ALB-DNS
 }
 output "ALB-DNS-NewYork" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_NewYork.ALB-DNS
+  value       = module.infrastructure_NewYork.ALB-DNS
 }
 output "ALB-DNS-Brazil" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_Brazil.ALB-DNS
+  value       = module.infrastructure_Brazil.ALB-DNS
 }
 output "ALB-DNS-Sydney" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_Sydney.ALB-DNS
+  value       = module.infrastructure_Sydney.ALB-DNS
 }
 output "ALB-DNS-HongKong" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_HongKong.ALB-DNS
+  value       = module.infrastructure_HongKong.ALB-DNS
 }
 output "ALB-DNS-Cali" {
   description = "The ID of the ALB DNS"
-  value = module.infrastructure_Cali.ALB-DNS
+  value       = module.infrastructure_Cali.ALB-DNS
 }
