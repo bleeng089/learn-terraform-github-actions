@@ -1,20 +1,15 @@
-name: "Terraform Cloud Managed Workflow"
+name: "Terraform Plan"
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-
 env:
   TF_CLOUD_ORGANIZATION: "AWSUltramarines"
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
   TF_WORKSPACE: "learn-terraform-github-actions"
   CONFIG_DIRECTORY: "./"
-
 jobs:
   terraform:
-    name: "Terraform Plan and Apply"
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,7 +17,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-
       - name: Upload Configuration
         uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
         id: plan-upload
@@ -30,7 +24,6 @@ jobs:
           workspace: ${{ env.TF_WORKSPACE }}
           directory: ${{ env.CONFIG_DIRECTORY }}
           speculative: true
-
       - name: Create Plan Run
         uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
         id: plan-run
@@ -38,26 +31,25 @@ jobs:
           workspace: ${{ env.TF_WORKSPACE }}
           configuration_version: ${{ steps.plan-upload.outputs.configuration_version_id }}
           plan_only: true
-
       - name: Get Plan Output
         uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.0.0
         id: plan-output
         with:
           plan: ${{ fromJSON(steps.plan-run.outputs.payload).data.relationships.plan.data.id }}
-
-      - name: Update Pull Request
+      - name: Update PR
         uses: actions/github-script@v6
         id: plan-comment
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            // 1. Retrieve existing bot comments for the PR
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
             const botComment = comments.find(comment => {
-              return comment.user.type === 'Bot' && comment.body.includes('HCP Terraform Plan Output');
+              return comment.user.type === 'Bot' && comment.body.includes('HCP Terraform Plan Output')
             });
             const output = `#### HCP Terraform Plan Output
                 \`\`\`
@@ -65,6 +57,7 @@ jobs:
                 \`\`\`
                 [HCP Terraform Plan](${{ steps.plan-run.outputs.run_link }})
                 `;
+            // 3. Delete previous comment so PR timeline makes sense
             if (botComment) {
               github.rest.issues.deleteComment({
                 owner: context.repo.owner,
@@ -78,11 +71,3 @@ jobs:
               repo: context.repo.repo,
               body: output
             });
-
-      - name: Apply Configuration
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.0.0
-        id: apply-run
-        with:
-          workspace: ${{ env.TF_WORKSPACE }}
-          configuration_version: ${{ steps.plan-upload.outputs.configuration_version_id }}
