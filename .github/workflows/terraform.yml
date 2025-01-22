@@ -1,79 +1,88 @@
-name: "Terraform"
+name: "Terraform Cloud Managed Workflow"
 
 on:
   push:
     branches:
-      - main #Runs the workflow when changes are pushed to the main branch.
+      - main
   pull_request:
+
+env:
+  TF_CLOUD_ORGANIZATION: "AWSUltramarines"
+  TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
+  TF_WORKSPACE: "learn-terraform-github-actions"
+  CONFIG_DIRECTORY: "./"
 
 jobs:
   terraform:
-    name: "Terraform"
-    runs-on: ubuntu-latest #This is ran on GitHub-hosted runners VMS
+    name: "Terraform Plan and Apply"
+    runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
-      - name: Checkout 
-        uses: actions/checkout@v3 #This action checks out your repository to the GitHub runner(GitHub-hosted virtual machine), meaning it fetches your code so the runner has access to it during the workflow execution.
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
+      - name: Upload Configuration
+        uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
+        id: plan-upload
         with:
-          # terraform_version: 0.13.0:
-          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+          workspace: ${{ env.TF_WORKSPACE }}
+          directory: ${{ env.CONFIG_DIRECTORY }}
+          speculative: true
 
-      - name: Terraform Format
-        id: fmt
-        run: terraform fmt -check
-
-      - name: Terraform Init
-        id: init
-        run: terraform init
-      
-      - name: Terraform Validate
-        id: validate
-        run: terraform validate -no-color #The -no-color option prevents Terraform from using colored output. This is useful in CI/CD pipelines, as it makes the logs cleaner and easier to read without the ANSI color codes that might clutter the output.
-
-      - name: Terraform Plan
-        id: plan
-        if: github.event_name == 'pull_request' #github.event_name = The name of the event that triggered the workflow run.
-        run: terraform plan -no-color -input=false
-        continue-on-error: true
-
-      - name: Update Pull Request #This step helps in providing real-time feedback on the pull request with detailed results from the Terraform execution. It enhances the review process by making the relevant information easily accessible to reviewers.
-        uses: actions/github-script@v6 #Script Execution: You provide a JavaScript script that runs within the workflow. This script can use the GitHub API to perform various actions, such as creating comments, updating issues, or querying repository data
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: ${{ steps.plan.outputs.stdout }}
+      - name: Create Plan Run
+        uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
+        id: plan-run
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.plan-upload.outputs.configuration_version_id }}
+          plan_only: true
+
+      - name: Get Plan Output
+        uses: hashicorp/tfc-workflows-github/actions/plan-output@v1.0.0
+        id: plan-output
+        with:
+          plan: ${{ fromJSON(steps.plan-run.outputs.payload).data.relationships.plan.data.id }}
+
+      - name: Update Pull Request
+        uses: actions/github-script@v6
+        id: plan-comment
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`terraform\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('HCP Terraform Plan Output');
+            });
+            const output = `#### HCP Terraform Plan Output
+                \`\`\`
+                Plan: ${{ steps.plan-output.outputs.add }} to add, ${{ steps.plan-output.outputs.change }} to change, ${{ steps.plan-output.outputs.destroy }} to destroy.
+                \`\`\`
+                [HCP Terraform Plan](${{ steps.plan-run.outputs.run_link }})
+                `;
+            if (botComment) {
+              github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+              });
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: output
-            })
+            });
 
-      - name: Terraform Plan Status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1 #If the Terraform plan fails, this step will fail the workflow, ensuring that further steps are not executed.
-
-      - name: Terraform Apply
+      - name: Apply Configuration
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve -input=false #If the changes are pushed to the main branch, this step will apply the Terraform plan automatically.
+        uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.0.0
+        id: apply-run
+        with:
+          workspace: ${{ env.TF_WORKSPACE }}
+          configuration_version: ${{ steps.plan-upload.outputs.configuration_version_id }}
